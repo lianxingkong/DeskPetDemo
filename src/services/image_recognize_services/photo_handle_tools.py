@@ -7,20 +7,9 @@ from pathlib import Path
 import aiohttp
 import httpx
 from PyQt5.QtCore import pyqtSignal, QObject
+from loguru import logger
 
-# 获取配置参数
-report_url = os.getenv("BAIDUAI__REPORT_REQUEST_URL")  # 提交任务的 URL
-get_result_url = os.getenv("BAIDUAI__GET_RESULT_URL")  # 查询结果的 URL
-api_key = os.getenv("BAIDUAI__API_KEY")
-secret_key = os.getenv("BAIDUAI__SECRET_KEY")
-
-# 百度获取 Token 的固定地址，不要用环境变量里的 report_url
-BAIDU_TOKEN_URL = "https://aip.baidubce.com/oauth/2.0/token"
-
-# 1. 先定义目录
-save_dir = Path("C:/Users/qy229/Documents/codes/DeskPet")
-# 2. 自动创建目录
-save_dir.mkdir(parents=True, exist_ok=True)
+from ..image_recognize_services import *
 
 
 async def query_task_result(access_token: str, task_id: str):
@@ -30,7 +19,7 @@ async def query_task_result(access_token: str, task_id: str):
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
         async with session.post(get_result_url, params=params, json=data) as resp:
             result = await resp.json()
-            print(f"查询任务返回：{result}")
+            logger.debug(f"查询任务返回：{result}")
 
             if "error_code" in result:
                 raise Exception(f"查询任务失败：{result}")
@@ -65,7 +54,7 @@ class Report_request(QObject):
         try:
             asyncio.run(self._async_pipeline())
         except Exception as e:
-            print(f"图片处理异步流程报错: {e}")
+            logger.error(f"图片处理异步流程报错: {e}")
             self.img_finished.emit("图片识别失败")
             self.finished.emit()
 
@@ -86,7 +75,7 @@ class Report_request(QObject):
             "client_secret": api_secret
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(BAIDU_TOKEN_URL, params=params) as resp:
+            async with session.post(token_url, params=params) as resp:
                 data = await resp.json()
                 if "access_token" not in data:
                     raise Exception(f"获取token失败：{data}")
@@ -105,7 +94,7 @@ class Report_request(QObject):
                         async for chunk in resp.aiter_bytes():
                             f.write(chunk)
                 except Exception as e:
-                    print(e)
+                    logger.error(e)
 
     async def post_access_token(self, request_url: str, image_base64: str) -> str:
         """
@@ -119,7 +108,7 @@ class Report_request(QObject):
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 async with session.post(request_url, json=data) as resp:
                     result = await resp.json()
-                    print(f"百度提交接口返回：{result}")
+                    logger.debug(f"百度提交接口返回：{result}")
 
                     if "error_code" in result:
                         error_code = result["error_code"]
@@ -130,10 +119,10 @@ class Report_request(QObject):
                         raise Exception(f"接口返回格式异常，未获取到task_id，完整返回：{result}")
 
                     self.task_id = result["result"]["task_id"]
-                    print(f"图像理解任务提交成功，task_id：{self.task_id}")
+                    logger.debug(f"图像理解任务提交成功，task_id：{self.task_id}")
 
         except Exception as e:
-            print(f"提交百度图像理解任务失败：{str(e)}")
+            logger.error(f"提交百度图像理解任务失败：{str(e)}")
             raise
         return self.task_id
 
@@ -147,7 +136,7 @@ class Report_request(QObject):
         """核心识别逻辑"""
         # 只获取一次token
         access_token = await self.get_baidu_access_token(api_key, secret_key)
-        print(f"获取到的access_token前20位: {access_token[:20] if access_token else 'None'}")
+        logger.debug(f"获取到的access_token前20位: {access_token[:20] if access_token else 'None'}")
 
         # 正确的业务接口URL拼接 (这里用环境变量里的 report_url 才对)
         request_url = f"{report_url}?access_token={access_token}"
@@ -157,28 +146,28 @@ class Report_request(QObject):
             with open(self.save_path, "rb") as f:
                 image_bytes = f.read()
                 if len(image_bytes) == 0:
-                    print("图片文件为空")
+                    logger.error("图片文件为空")
                     self.finished.emit()
                     return
 
                 image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-                print(f"图片base64编码长度: {len(image_base64)}")
+                logger.debug(f"图片base64编码长度: {len(image_base64)}")
 
                 if len(image_base64) < 100:
-                    print("图片base64编码异常")
+                    logger.error("图片base64编码异常")
                     self.finished.emit()
                     return
         except Exception as e:
-            print(f"读取图片文件失败: {e}")
+            logger.error(f"读取图片文件失败: {e}")
             self.finished.emit()
             return
 
         # 提交任务
         try:
             task_id = await self.post_access_token(request_url, image_base64)
-            print(f"提交成功，task_id: {task_id}")
+            logger.debug(f"提交成功，task_id: {task_id}")
         except Exception as e:
-            print(f"提交任务失败: {e}")
+            logger.error(f"提交任务失败: {e}")
             self.finished.emit()
             return
 
@@ -196,23 +185,23 @@ class Report_request(QObject):
                     reply = task_result.get("description", "无返回结果")
                     break
                 elif ret_code == 1:
-                    print(f"任务处理中，第{retry_count + 1}次重试")
+                    logger.debug(f"任务处理中，第{retry_count + 1}次重试")
                     await asyncio.sleep(2)
                     retry_count += 1
                 else:
                     error_msg = task_result.get("error_msg", "未知错误")
-                    print(f"任务执行失败，ret_code: {ret_code}, error_msg: {error_msg}")
+                    logger.error(f"任务执行失败，ret_code: {ret_code}, error_msg: {error_msg}")
                     self.finished.emit()
                     return
             except Exception as e:
-                print(f"查询任务结果失败: {e}")
+                logger.error(f"查询任务结果失败: {e}")
                 await asyncio.sleep(2)
                 retry_count += 1
 
         if not reply:
-            print("任务处理超时，请重试")
+            logger.error("任务处理超时，请重试")
             self.finished.emit()
             return
-        print(f"baidu: {reply}")
+        logger.debug(f"baidu: {reply}")
         self.img_finished.emit(reply)
         self.finished.emit()

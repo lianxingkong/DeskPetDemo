@@ -1,5 +1,6 @@
 from PyQt5.QtCore import QObject, pyqtSignal
 from faster_whisper import WhisperModel
+from loguru import logger
 
 
 class WhisperSegment(QObject):
@@ -16,11 +17,11 @@ class WhisperSegment(QObject):
         """加载模型"""
         if self.model is None:
             try:
-                print("正在加载语音识别模型(首次运行需下载)，请稍候...")
+                logger.info("正在加载语音识别模型(首次运行需下载)，请稍候...")
                 self.model = WhisperModel("base", device="cpu", compute_type="int8")
-                print("模型加载完成！")
+                logger.info("模型加载完成！")
             except Exception as e:
-                print(f"模型加载失败: {e}")
+                logger.error(f"模型加载失败: {e}")
                 self.model = None
 
     def fasterWhisperSegment(self, audio_data):
@@ -39,8 +40,8 @@ class WhisperSegment(QObject):
 
             if result_text:
                 # 如果有结果，发射 result_finished 信号，把识别的文字传出去
+                logger.info(f"获取到的结果{result_text}")
                 self.result_finished.emit(result_text)
-                # 注意：识别成功时不在这里发 finished 信号，因为还要等 AI 回复完毕才算结束
             else:
                 self.message_received.emit("\n[未听清] 没有检测到有效语音。")
                 self.finished.emit()  # 没听清，流程结束，恢复按钮

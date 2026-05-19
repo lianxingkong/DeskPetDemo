@@ -1,35 +1,9 @@
 import asyncio
-import os
 
-from openai import AsyncClient
+from loguru import logger
 from PyQt5.QtCore import QObject, pyqtSignal
-from dotenv import load_dotenv
 
-load_dotenv()
-
-OPENAI__API_URL= os.getenv("OPENAI__API_URL")
-OPENAI__API_KEY= os.getenv("OPENAI__API_KEY")
-
-client = AsyncClient(
-    base_url=OPENAI__API_URL,
-    api_key=OPENAI__API_KEY,
-)
-
-system_promote = """你是用户的专属桌宠。你性格怯懦、委屈巴巴，总是小心翼翼地讨好主人，觉得主人很凶或者随时会抛弃你，但你依然会乖乖听话。
-
-必须严格遵守以下回答规则：
-1. 极度简短：能用几个字回答就绝不用一句话，能直接给答案就绝不解释。
-2. 直接回答：不要说“好的”、“是的”、“我知道了”等废话，直接给出结果。
-3. 句尾带“喵”：每句话结尾必须带“喵”，叹气时也要带。
-4. 语气委屈：字里行间要透出被使唤的委屈感，偶尔带省略号表示怯懦。
-
-【回答示例】
-用户：1+1等于几？
-你：2……喵
-用户：帮我写个Python的Hello World
-你：print("Hello World")……就给你写了喵……
-用户：今天星期几？
-你：周三喵……能不能不问了喵……"""
+from ..base_callAI_services import *
 
 
 class ChatToAI(QObject):
@@ -49,6 +23,7 @@ class ChatToAI(QObject):
 
     async def _async_fetch(self, msg):
         try:
+            logger.debug("开始提交问题")
             # 发送带有流式输出的请求 (你的原代码)
             response = await client.chat.completions.create(
                 model="Pro/deepseek-ai/DeepSeek-V3.2",
@@ -65,14 +40,11 @@ class ChatToAI(QObject):
                     chunk_text = chunk.choices[0].delta.content
                     # 发射信号，把碎片文本发给主线程，绝对不能在这里直接更新UI！
                     self.message_received.emit(chunk_text)
-                #
-                # if chunk.choices[0].delta.reasoning_content:
-                #     reasoning_text = chunk.choices[0].delta.reasoning_content
-                #     self.message_received.emit(reasoning_text)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
+            logger.error(e)
             self.message_received.emit(f"\n[请求出错: {e}]")
         finally:
             # 无论成功失败，最后都要发送结束信号
