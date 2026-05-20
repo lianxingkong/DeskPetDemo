@@ -9,15 +9,17 @@ import httpx
 from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
 
-from ..image_recognize_services import *
+from src.services.config import app_config
 
+save_dir = Path("/")
+save_dir.mkdir(parents=True, exist_ok=True)
 
 async def query_task_result(access_token: str, task_id: str):
     """查询任务结果"""
     params = {"access_token": access_token}
     data = {"task_id": task_id}
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-        async with session.post(get_result_url, params=params, json=data) as resp:
+        async with session.post(app_config.baidu.get_result_url, params=params, json=data) as resp:
             result = await resp.json()
             logger.debug(f"查询任务返回：{result}")
 
@@ -75,7 +77,7 @@ class Report_request(QObject):
             "client_secret": api_secret
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(token_url, params=params) as resp:
+            async with session.post(app_config.baidu.token_url, params=params) as resp:
                 data = await resp.json()
                 if "access_token" not in data:
                     raise Exception(f"获取token失败：{data}")
@@ -135,11 +137,11 @@ class Report_request(QObject):
     async def get_reply(self):
         """核心识别逻辑"""
         # 只获取一次token
-        access_token = await self.get_baidu_access_token(api_key, secret_key)
+        access_token = await self.get_baidu_access_token(app_config.baidu.api_key, app_config.baidu.secret_key)
         logger.debug(f"获取到的access_token前20位: {access_token[:20] if access_token else 'None'}")
 
         # 正确的业务接口URL拼接 (这里用环境变量里的 report_url 才对)
-        request_url = f"{report_url}?access_token={access_token}"
+        request_url = f"{app_config.baidu.report_url}?access_token={access_token}"
 
         # 读取图片并转换为base64
         try:

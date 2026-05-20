@@ -4,14 +4,12 @@ from PyQt5 import uic
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QMovie, QImage
 from PyQt5.QtWidgets import QWidget, QFileDialog
-from loguru import logger
 
 from src.core.rewrite_Function.rewrite_mouseEvent import MouseEvent
-from src.services.base_callAI_services.call_openai_tools import ChatToAI
-from src.services.voice_recognize_services.faster_whisper_tools import WhisperSegment
-from src.services.voice_recognize_services.get_voice_tools import get_voice_tools
-from src.services.image_recognize_services.photo_handle_tools import Report_request
 from src.core.rewrite_Function.rewrite_getph_ui import ChatBox
+from src.services import ChatToAI, WhisperSegment, get_voice_tools, Report_request
+
+from .config import ui_setting
 
 
 class DeskpetUI(QWidget,MouseEvent):
@@ -23,14 +21,13 @@ class DeskpetUI(QWidget,MouseEvent):
     def __init__(self):
         super().__init__()
         # 初始化自定义的ui
-        uic.loadUi('C:/Users/qy229/Documents/codes/DeskPet/untitled.ui', self)
+        uic.loadUi(ui_setting.ui.loadUi, self)
         # 记录拖拽位置
         self.drag_pos = 0
         # 初始化图片状态
         self.pending_photo_desc = None
         # 获取当前文件的父级文件
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.img_path = os.path.join(current_dir, '..', 'resources', 'krx.gif')
+        self.img_path = ui_setting.ui.img_path
         # 初始化UI
         self.init_ui()
         # 初始化线程

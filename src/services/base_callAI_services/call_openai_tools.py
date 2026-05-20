@@ -1,10 +1,16 @@
 import asyncio
 
+from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
-from PyQt5.QtCore import QObject, pyqtSignal
+from openai import AsyncClient
 
-from ..base_callAI_services import *
+from .promote import system_promote
+from src.services.config import app_config
 
+client = AsyncClient(
+    base_url=app_config.openai.api_url,
+    api_key=app_config.openai.api_key,
+)
 
 class ChatToAI(QObject):
     # 定义信号：接收到一段流式文本 / 全部生成完毕
