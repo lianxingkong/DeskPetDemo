@@ -1,10 +1,7 @@
 import sys
 
-from dotenv import load_dotenv
-load_dotenv()
-
 from PyQt5.QtWidgets import QApplication
-import src.services
+from src.services import *
 from src.ui import DeskpetUI
 
 if __name__ == "__main__":

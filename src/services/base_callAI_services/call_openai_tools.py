@@ -20,20 +20,28 @@ class ChatToAI(QObject):
     def __init__(self):
         super().__init__()
 
+    @staticmethod
+    def load_system_prompt(file_path):
+        """读取 Markdown 文件并返回文本内容"""
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return f.read()
+
     def fetch_data(self, msg):
-        """
-        这个方法将在子线程中执行。
-        """
+        """这个方法将在子线程中执行。"""
         # 在子线程中开启异步事件循环
         asyncio.run(self._async_fetch(msg))
 
     async def _async_fetch(self, msg):
+        system_prompts = self.load_system_prompt("prompts/callAI.md")
+        if not system_prompts:
+            self.message_received.emit(f"call_ai没有提示词啊")
+            return
         try:
             logger.debug("开始提交问题")
             # 发送带有流式输出的请求 (你的原代码)
             response = await client.chat.completions.create(
                 model="Pro/deepseek-ai/DeepSeek-V3.2",
-                messages=[{"role": "system", "content": system_promote},
+                messages=[{"role": "system", "content": system_prompts},
                           {"role": "user", "content": msg}],
                 stream=True
             )

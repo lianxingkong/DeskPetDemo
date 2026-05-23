@@ -1,9 +1,6 @@
 import os
 from dataclasses import dataclass
 
-@dataclass
-class BaseConfig:
-    is_enable: bool = True
 
 @dataclass
 class UISettingConfig:
@@ -13,7 +10,6 @@ class UISettingConfig:
 
 class UIConfig:
     def __init__(self):
-        self.base = BaseConfig()
         self.ui = UISettingConfig()
 
 # 此包内全局唯一实例化

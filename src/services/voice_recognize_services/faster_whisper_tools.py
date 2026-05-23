@@ -32,7 +32,7 @@ class WhisperSegment(QObject):
             return
 
         try:
-            self.message_received.emit("语音识别中...\n")
+            logger.info("语音识别中")
             segments, info = self.model.transcribe(audio_data, beam_size=5)
 
             # 拼接识别结果

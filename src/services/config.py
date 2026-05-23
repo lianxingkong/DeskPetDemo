@@ -1,28 +1,40 @@
-import os
-from dataclasses import dataclass
+from pathlib import Path
 
-@dataclass
-class BaseConfig:
-    is_enable: bool = True
-@dataclass
-class OpenAIConfig:
-    api_url: str = os.getenv("OPENAI__API_URL", "")
-    api_key: str = os.getenv("OPENAI__API_KEY", "")
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-@dataclass
-class BaiduAIConfig:
-    report_url: str = os.getenv("BAIDUAI__REPORT_REQUEST_URL", "")
-    get_result_url: str = os.getenv("BAIDUAI__GET_RESULT_URL", "")
-    api_key: str = os.getenv("BAIDUAI__API_KEY", "")
-    secret_key: str = os.getenv("BAIDUAI__SECRET_KEY", "")
-    token_url: str = os.getenv("BAIDUAI___TOKEN_URL", "")
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+ENV_FILE_PATH = BASE_DIR / ".env"
+
+class BaseConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH,env_prefix="SWITCH__", extra="ignore")
+    call_AI_is_enable: bool = True
+    image_handle_is_enable: bool = True
+    memory_handle_is_enable: bool = True
+    voice_handle_is_enable: bool = True
+
+class OpenAIConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_prefix="OPENAI__", extra="ignore")
+    api_url: str
+    api_key: str
+
+class BaiduAIConfig(BaseSettings):
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_prefix="BAIDU__", extra="ignore")
+    report_url: str
+    get_result_url: str
+    api_key: str
+    secret_key: str
+    token_url: str
+
+class MemoryConfig(BaseConfig):
+    model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_prefix="MEMORY__", extra="ignore")
+    threshold : float
 class AppConfig:
     """应用顶层配置（全局单例）"""
     def __init__(self):
         self.base = BaseConfig()
-        self.openai = OpenAIConfig()   # OpenAI 相关
-        self.baidu = BaiduAIConfig()   # 百度 AI 相关
+        self.openai = OpenAIConfig()
+        self.baidu = BaiduAIConfig()
+        self.memorial = MemoryConfig()
 
-# 直接在模块级实例化，全局唯一
 app_config = AppConfig()
