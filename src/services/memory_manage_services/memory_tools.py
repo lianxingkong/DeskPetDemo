@@ -79,6 +79,10 @@ class HandleMemory(QObject):
         """归档记忆，复用检索时已匹配的 group，不再二次判断相关性"""
         self.current_dialogue = new_dialogue
 
+        if self.current_dialogue is None:
+            logger.error("输入合并记忆的信息为空")
+            return
+
         if self._matched_group and self._matched_group in data:
             # 有匹配：只需合并，不再判断相关性
             old_mem = data[self._matched_group]['memory']
@@ -103,8 +107,9 @@ AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
                 traceback.print_exc()
                 logger.error(e)
 
+            logger.debug(f"记忆合并时的动作{refined_msg}")
             # 增加对有效格式的判断，且超时/失败时保护原记忆
-            if refined_msg != 0 and "用户问题：" in refined_msg and "AI回复：" in refined_msg:
+            if refined_msg != 0:
 
                 # 最终清理后的完整memory
                 clean_lines = [line for line in refined_msg.strip().split('\n')]

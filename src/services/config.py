@@ -29,6 +29,10 @@ class BaiduAIConfig(BaseSettings):
 class MemoryConfig(BaseConfig):
     model_config = SettingsConfigDict(env_file=ENV_FILE_PATH, env_prefix="MEMORY__", extra="ignore")
     threshold : float
+
+class McpConfig(BaseConfig):
+    pass
+
 class AppConfig:
     """应用顶层配置（全局单例）"""
     def __init__(self):
@@ -36,5 +40,6 @@ class AppConfig:
         self.openai = OpenAIConfig()
         self.baidu = BaiduAIConfig()
         self.memorial = MemoryConfig()
+        self.mcp = McpConfig()
 
 app_config = AppConfig()

@@ -13,3 +13,6 @@ if app_config.base.voice_handle_is_enable:
 
 if app_config.base.memory_handle_is_enable:
     from .memory_manage_services.memory_tools import *
+
+from .mcp_services.end_mcp_tools import *
+from .mcp_services.start_mcp_tools import *

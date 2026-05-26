@@ -24,7 +24,7 @@ class AsyncVoiceRecorder(QObject):
     def start_recording(self):
         """开始录音（非阻塞，瞬间返回）"""
         self.recorded_frames = []
-        self.recording_status.emit(f"正在录音({self.duration}秒)...")
+        self.recording_status.emit(f"(get_voice_tools里的)正在录音({self.duration}秒)...")
 
         # 开启 InputStream，底层自动在后台采集音频
         self.stream = sd.InputStream(
@@ -35,6 +35,7 @@ class AsyncVoiceRecorder(QObject):
         )
         self.stream.start()
 
+        logger.debug("开始录音")
         # 启动定时器，时间一到自动停止
         self.timer.start(int(self.duration * 1000))
 
@@ -46,6 +47,7 @@ class AsyncVoiceRecorder(QObject):
 
     def stop_recording(self):
         """停止录音并发射数据"""
+        logger.debug("已经进入stop_recording")
         if hasattr(self, 'stream') and self.stream.active:
             self.stream.stop()
             self.stream.close()
@@ -55,5 +57,6 @@ class AsyncVoiceRecorder(QObject):
                 audio_data = np.concatenate(self.recorded_frames, axis=0).flatten()
                 # 如果录音稍微超长，截断到指定时长
                 self.voice_data_ready.emit(audio_data[:self.frames_needed])
+                logger.debug("已经获取到数据，正在发射")
 
             self.recording_status.emit("录音结束")
