@@ -31,7 +31,7 @@ class MemoryConfig(BaseConfig):
     threshold : float
 
 class McpConfig(BaseConfig):
-    pass
+    is_enable: bool = True
 
 class AppConfig:
     """应用顶层配置（全局单例）"""
