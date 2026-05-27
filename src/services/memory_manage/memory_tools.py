@@ -107,7 +107,6 @@ AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
                 traceback.print_exc()
                 logger.error(e)
 
-            logger.debug(f"记忆合并时的动作{refined_msg}")
             # 增加对有效格式的判断，且超时/失败时保护原记忆
             if refined_msg != 0:
 

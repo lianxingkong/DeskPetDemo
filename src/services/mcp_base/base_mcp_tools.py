@@ -1,5 +1,7 @@
 from functools import wraps
 
+from loguru import logger
+
 
 class BaseMcpStart:
     """mcp的类装饰器(启动)"""
@@ -17,6 +19,7 @@ class BaseMcpStart:
     @classmethod
     def start_all(cls):
         """执行所有已注册的函数"""
+        logger.debug("mcp服务已启动")
         for func in cls._registry:
             func()
 
@@ -36,5 +39,6 @@ class BaseMcpEnd:
     @classmethod
     def start_all(cls):
         """执行所有已注册的函数"""
+        logger.debug("mcp服务已停止")
         for func in cls._registry:
             func()

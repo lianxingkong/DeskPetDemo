@@ -1,5 +1,5 @@
 from .example_mcp_config import *
-from .MultiMCPManager import *
+from .multi_mcp_manager import *
 from .. import app_config
 
 if app_config.mcp.is_enable:
@@ -8,7 +8,7 @@ else:
     mcp_manager = None
 
 
-from ..mcp_services import base_mcp_tools
+from ..mcp_base import base_mcp_tools
 @base_mcp_tools.BaseMcpStart
 async def mcp_start():
     if app_config.mcp.is_enable:
