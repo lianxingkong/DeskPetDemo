@@ -2,7 +2,7 @@ from loguru import logger
 from modelscope import snapshot_download
 from sentence_transformers import SentenceTransformer, util
 
-from src.services.config import app_config
+from .config import app_config
 
 # 从 ModelScope 下载模型到本地
 model_dir = snapshot_download('Qwen/Qwen3-Embedding-0.6B')

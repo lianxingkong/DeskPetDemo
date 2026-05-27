@@ -1,5 +1,10 @@
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
-from src.services import ChatToAI, WhisperSegment, Report_request, HandleMemory, AsyncVoiceRecorder
+
+from src.services.mcp_support.base_mcp_tools import BaseMcpStart
+from src.services.voice_recognize import WhisperSegment, AsyncVoiceRecorder
+from src.services.memory_manage import HandleMemory
+from src.services.image_recognize import Report_request
+from src.services.base_callAI import ChatToAI
 
 
 class ThreadManager(QObject):
@@ -31,6 +36,11 @@ class ThreadManager(QObject):
         # 触发录音的信号 -> 录音器的启动方法
         self.voice_record_triggered.connect(self.recorder_worker.start_recording)
         self.recorder_worker.voice_data_ready.connect(self.voice_worker.fasterWhisperSegment)
+
+    @staticmethod
+    async def _init_mcp_thread():
+        # 启动mcp服务
+        await BaseMcpStart.start_all()
 
     def _init_text_thread(self):
         self.text_thread = QThread()

@@ -7,7 +7,7 @@ from loguru import logger
 from openai import Client
 
 from .vector_handler import VectorHandler
-from .. import app_config
+from .config import app_config
 
 path = Path(__file__).resolve().parent
 filepath = path / 'memory.json'

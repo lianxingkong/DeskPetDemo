@@ -4,7 +4,7 @@ from PyQt5.QtGui import QFont, QMovie, QImage
 from PyQt5.QtWidgets import QWidget, QFileDialog
 from loguru import logger
 
-from src.core import ChatBox, MouseEvent
+from src.core.rewrite_Function import ChatBox, MouseEvent
 from src.ui.config import ui_setting
 
 

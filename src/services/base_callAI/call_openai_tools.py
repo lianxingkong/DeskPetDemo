@@ -4,7 +4,8 @@ from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
 from openai import AsyncClient
 
-from src.services.config import app_config
+from .config import app_config
+
 
 client = AsyncClient(
     base_url=app_config.openai.api_url,

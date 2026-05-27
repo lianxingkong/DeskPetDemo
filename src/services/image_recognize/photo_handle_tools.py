@@ -9,7 +9,7 @@ import httpx
 from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
 
-from src.services.config import app_config
+from .config import app_config
 
 save_dir = Path("/")
 save_dir.mkdir(parents=True, exist_ok=True)
