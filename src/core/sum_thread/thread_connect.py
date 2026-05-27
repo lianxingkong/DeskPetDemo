@@ -1,6 +1,5 @@
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from src.services import ChatToAI, WhisperSegment, Report_request, HandleMemory, AsyncVoiceRecorder
-from src.services import BaseMcpControl
 
 
 class ThreadManager(QObject):
@@ -64,7 +63,6 @@ class ThreadManager(QObject):
         self.memory_thread.start()
 
     def cleanup(self):
-        func = BaseMcpControl
         self.recorder_thread.quit()
         self.recorder_thread.wait()
         self.text_thread.quit()
