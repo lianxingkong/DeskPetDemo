@@ -59,6 +59,9 @@ class DeskpetUI(QWidget, MouseEvent):
     def _on_yes_clicked(self):
         """确认按钮被点击，取文字发射出去"""
         msg = self.inputLogs.text()
+        if msg == "/stop":
+            self.close()
+            return
         if not msg:
             self.show_system_message("你还什么都没有输入呢")
             return

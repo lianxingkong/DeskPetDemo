@@ -1,6 +1,6 @@
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
-from src.services.mcp_support.base_mcp_tools import BaseMcpStart
+from src.services.mcp_support.base_mcp_tools import BaseMcpStart, BaseMcpEnd
 from src.services.voice_recognize import WhisperSegment, AsyncVoiceRecorder
 from src.services.memory_manage import HandleMemory
 from src.services.image_recognize import Report_request
@@ -32,15 +32,14 @@ class ThreadManager(QObject):
         self._init_photo_thread()
         self._init_memory_thread()
 
+        BaseMcpStart.start_loop()
+        BaseMcpStart.start_all()
+
         # 第二步：跨线程的流水线信号连接 (录音完毕 -> 交给 Whisper)
         # 触发录音的信号 -> 录音器的启动方法
         self.voice_record_triggered.connect(self.recorder_worker.start_recording)
         self.recorder_worker.voice_data_ready.connect(self.voice_worker.fasterWhisperSegment)
 
-    @staticmethod
-    async def _init_mcp_thread():
-        # 启动mcp服务
-        await BaseMcpStart.start_all()
 
     def _init_text_thread(self):
         self.text_thread = QThread()
@@ -73,6 +72,7 @@ class ThreadManager(QObject):
         self.memory_thread.start()
 
     def cleanup(self):
+        BaseMcpEnd.start_all()
         self.recorder_thread.quit()
         self.recorder_thread.wait()
         self.text_thread.quit()

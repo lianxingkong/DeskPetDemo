@@ -8,13 +8,13 @@ from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.streamable_http import streamable_http_client
 from mcp.types import LoggingMessageNotificationParams
-from logging import getLogger
-logger = getLogger(__name__)
+from loguru import logger
+
 
 try:
-    from .mcp_config import McpServerConfig, mcp_init_timeout, mcp_configs
+    from .config import McpServerConfig, mcp_init_timeout, mcp_configs
 except Exception as e:
-    logger.warning("导入mcp_config失败，降级使用example.mcp_config")
+    logger.warning("导入mcp_config失败，降级使用example.mcp_config(example.mcp_config是备份)")
     from .example_mcp_config import McpServerConfig, mcp_init_timeout, mcp_configs
 
 

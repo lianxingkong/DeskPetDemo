@@ -1,10 +1,11 @@
 import sys
+
 from PyQt5.QtWidgets import QApplication
 
 from src.ui.view.based_ui import DeskpetUI
 from src.ui.butler.ui_relay import CommunicationButler
 from src.core.sum_thread import ThreadManager
-from src.services.mcp_support.base_mcp_tools import BaseMcpEnd
+
 
 if __name__ == "__main__":
     # 初始化线程
@@ -19,6 +20,4 @@ if __name__ == "__main__":
     view.show()
     # 结束指令
     exit_code = app.exec_()
-    # 结束mcp服务
-    BaseMcpEnd.start_all()
     core.cleanup().exit(exit_code)
