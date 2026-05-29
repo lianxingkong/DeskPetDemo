@@ -50,16 +50,16 @@ mcp_configs = [
         name="get_time",
         transport="stdio",
         command=sys.executable,
-        args=["C:/Users/qy229/Documents/codes/DeskPet/src/services/get_now_time_tools/get_time.py"],
+        args=["C:/Users/qy229/Documents/codes/DeskPet/src/services/mcp_tools/all_tools_start.py"],
         prefix="time",
     ),
-    McpServerConfig(
-        name="get_weather",
-        transport="stdio",
-        command=sys.executable,
-        args=["C:/Users/qy229/Documents/codes/DeskPet/src/services/get_now_weather_tools/get_weather.py"],
-        prefix="weather"
-    ),
+    # McpServerConfig(
+    #     name="get_weather",
+    #     transport="stdio",
+    #     command=sys.executable,
+    #     args=["C:/Users/qy229/Documents/codes/DeskPet/src/services/get_now_weather_tools/get_weather.py"],
+    #     prefix="weather"
+    # ),
 ]
 """
 其他例子

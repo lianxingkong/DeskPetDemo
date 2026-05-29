@@ -63,7 +63,3 @@ async def get_current_weather(location : str):
     logger.debug(answer)
 
     return answer
-
-# 必须有这个入口
-if __name__ == "__main__":
-    mcp.run(transport='stdio')
