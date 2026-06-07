@@ -7,8 +7,6 @@ from src.ui.view.based_ui import MascotApi
 os.environ['WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'] = (
     '--disable-features=CalculateNativeWinOcclusion '
     '--enable-transparent-visuals '
-    '--enable-blink-features=WebGLAlpha,Accelerated2dCanvas '
-    '--disable-gpu-vsync'
 )
 
 if __name__ == "__main__":
