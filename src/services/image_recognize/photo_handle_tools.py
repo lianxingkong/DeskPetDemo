@@ -1,15 +1,12 @@
 import asyncio
 import base64
-import os
-import time
 from pathlib import Path
 
 import aiohttp
-import httpx
-from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
 
 from .config import app_config
+
 
 save_dir = Path("/")
 save_dir.mkdir(parents=True, exist_ok=True)
@@ -31,43 +28,27 @@ async def query_task_result(access_token: str, task_id: str):
             return result["result"]
 
 
-class Report_request(QObject):
-    # 定义信号
-    img_received = pyqtSignal(str)  # 用于发送中间状态
-    img_finished = pyqtSignal(str)  # 用于发送最终的识别结果文本
-    finished = pyqtSignal()         # 任务结束信号
+class Report_request():
 
     def __init__(self):
         super().__init__()
+        self.status = "img"
         self.img_url = None
         self.task_id = None
-        self.save_path = None
 
-    def start_process(self, file_path):
-        """供 PyQt 信号调用的同步入口方法"""
-        # 如果传进来的是本地路径（用户选的文件），直接赋值给 save_path
-        if file_path and os.path.exists(file_path):
-            self.save_path = Path(file_path)
-            self.img_url = None  # 本地文件不需要下载
-        else:
-            self.img_url = file_path  # 如果是网络地址才需要下载
-
-        # 在子线程中启动异步事件循环
+    async def start_process(self, img_queue, result_queue):
+        """启动图片识别的中继"""
         try:
-            asyncio.run(self._async_pipeline())
+            while True:
+                file_path = await img_queue.get()
+                if file_path:
+                    await self.get_reply(result_queue, file_path)
+                img_queue.task_done()
         except Exception as e:
-            logger.error(f"图片处理异步流程报错: {e}")
-            self.img_finished.emit("图片识别失败")
-            self.finished.emit()
+            import traceback
+            traceback.print_exc()
+            logger.error(e)
 
-    async def _async_pipeline(self):
-        """异步流水线：根据情况下载或直接识别"""
-        # 如果是网络地址，才执行下载
-        if self.img_url and not self.save_path:
-            await self.give_photo_url()
-
-        # 执行核心识别逻辑
-        await self.get_reply()
 
     async def get_baidu_access_token(self, api_key, api_secret):
         # 修复：使用固定的 BAIDU_TOKEN_URL，而不是 report_url
@@ -83,20 +64,6 @@ class Report_request(QObject):
                     raise Exception(f"获取token失败：{data}")
                 return data["access_token"]
 
-    # 下载图片
-    async def photo_download(self, img_url, save_path: Path):
-        if img_url is None:
-            self.img_received.emit("图片获取失败")
-            return
-        async with httpx.AsyncClient(headers={}, timeout=60, max_redirects=5) as client_httpx:
-            async with client_httpx.stream("GET", img_url) as resp:
-                try:
-                    resp.raise_for_status()
-                    with open(save_path, "wb") as f:
-                        async for chunk in resp.aiter_bytes():
-                            f.write(chunk)
-                except Exception as e:
-                    logger.error(e)
 
     async def post_access_token(self, request_url: str, image_base64: str) -> str:
         """
@@ -128,14 +95,10 @@ class Report_request(QObject):
             raise
         return self.task_id
 
-    async def give_photo_url(self):
-        """下载图片"""
-        file_name = f"{time.strftime('%Y%m%d_%H%M%S', time.localtime())}.jpg"
-        self.save_path = save_dir / file_name
-        await self.photo_download(self.img_url, self.save_path)
-
-    async def get_reply(self):
-        """核心识别逻辑"""
+    async def get_reply(self, queue, file_path):
+        """
+        获取百度图像内容理解结果异步任务
+        """
         # 只获取一次token
         access_token = await self.get_baidu_access_token(app_config.baidu.api_key, app_config.baidu.secret_key)
         logger.debug(f"获取到的access_token前20位: {access_token[:20] if access_token else 'None'}")
@@ -145,11 +108,10 @@ class Report_request(QObject):
 
         # 读取图片并转换为base64
         try:
-            with open(self.save_path, "rb") as f:
+            with open(file_path, "rb") as f:
                 image_bytes = f.read()
                 if len(image_bytes) == 0:
                     logger.error("图片文件为空")
-                    self.finished.emit()
                     return
 
                 image_base64 = base64.b64encode(image_bytes).decode('utf-8')
@@ -157,11 +119,9 @@ class Report_request(QObject):
 
                 if len(image_base64) < 100:
                     logger.error("图片base64编码异常")
-                    self.finished.emit()
                     return
         except Exception as e:
             logger.error(f"读取图片文件失败: {e}")
-            self.finished.emit()
             return
 
         # 提交任务
@@ -170,7 +130,6 @@ class Report_request(QObject):
             logger.debug(f"提交成功，task_id: {task_id}")
         except Exception as e:
             logger.error(f"提交任务失败: {e}")
-            self.finished.emit()
             return
 
         # 循环查询任务结果
@@ -193,7 +152,6 @@ class Report_request(QObject):
                 else:
                     error_msg = task_result.get("error_msg", "未知错误")
                     logger.error(f"任务执行失败，ret_code: {ret_code}, error_msg: {error_msg}")
-                    self.finished.emit()
                     return
             except Exception as e:
                 logger.error(f"查询任务结果失败: {e}")
@@ -202,8 +160,6 @@ class Report_request(QObject):
 
         if not reply:
             logger.error("任务处理超时，请重试")
-            self.finished.emit()
             return
         logger.debug(f"baidu: {reply}")
-        self.img_finished.emit(reply)
-        self.finished.emit()
+        await queue.put((reply, self.status))  # 返回结果

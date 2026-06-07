@@ -1,19 +1,14 @@
-from PyQt5.QtCore import QObject, pyqtSignal
 from faster_whisper import WhisperModel
 from loguru import logger
 
 
-class WhisperSegment(QObject):
-    # 定义信号
-    message_received = pyqtSignal(str)  # 用于发送中间状态（如"识别中"）
-    result_finished = pyqtSignal(str)  # 用于发送最终的识别结果文本
-    finished = pyqtSignal()  # 任务结束信号
+class WhisperSegment():
 
     def __init__(self):
         super().__init__()
         self.model = None
 
-    def load_model(self):
+    async def load_model(self):
         """加载模型"""
         if self.model is None:
             try:
@@ -24,11 +19,11 @@ class WhisperSegment(QObject):
                 logger.error(f"模型加载失败: {e}")
                 self.model = None
 
-    def fasterWhisperSegment(self, audio_data):
+    async def fasterWhisperSegment(self, queue, ccb_queue):
         """接收音频数据并进行识别"""
+        audio_data = await ccb_queue.get()
         if self.model is None:
-            self.message_received.emit("\n[错误] 语音模型未加载成功，无法识别！")
-            self.finished.emit()
+            logger.error("语音模型未加载成功，无法识别！")
             return
 
         try:
@@ -41,12 +36,10 @@ class WhisperSegment(QObject):
             if result_text:
                 # 如果有结果，发射 result_finished 信号，把识别的文字传出去
                 logger.info(f"获取到的结果{result_text}")
-                self.result_finished.emit(result_text)
+                await queue.put((result_text, None))
             else:
-                self.message_received.emit("\n[未听清] 没有检测到有效语音。")
-                self.finished.emit()  # 没听清，流程结束，恢复按钮
+                logger.error("[未听清] 没有检测到有效语音。")
 
         except Exception as e:
-            self.message_received.emit(f"\n[识别错误] {str(e)}")
-            self.finished.emit()  # 出错，流程结束，恢复按钮
+            logger.error(e)
 

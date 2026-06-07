@@ -1,62 +1,87 @@
 import sounddevice as sd
 import numpy as np
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer
+import threading
 from loguru import logger
 
 
-class AsyncVoiceRecorder(QObject):
-    """(AI)基于回调的非阻塞录音器（真正的异步）"""
-    voice_data_ready = pyqtSignal(object)
-    recording_status = pyqtSignal(str)
+class AsyncVoiceRecorder:
+    """基于回调的非阻塞录音器（无 PyQt 依赖）"""
 
-    def __init__(self, duration=5, fs=16000):
-        super().__init__()
+    def __init__(self, duration=5, fs=16000,
+                 on_data_ready=None):
+        self.stream = None
         self.duration = duration
         self.fs = fs
         self.frames_needed = int(duration * fs)
         self.recorded_frames = []
+        self._lock = threading.Lock()
+        self._timer = None
+        self._recording = False
 
-        # 使用 QTimer 来控制录音时长，不阻塞线程
-        self.timer = QTimer(self)
-        self.timer.setSingleShot(True)
-        self.timer.timeout.connect(self.stop_recording)
+        # 回调替代 pyqtSignal
+        self.on_data_ready = on_data_ready
+
+    @property
+    def is_recording(self):
+        return self._recording
 
     def start_recording(self):
         """开始录音（非阻塞，瞬间返回）"""
-        self.recorded_frames = []
-        self.recording_status.emit(f"(get_voice_tools里的)正在录音({self.duration}秒)...")
+        with self._lock:
+            self.recorded_frames = []
+            self._recording = True
 
-        # 开启 InputStream，底层自动在后台采集音频
         self.stream = sd.InputStream(
             samplerate=self.fs,
             channels=1,
             dtype='float32',
-            callback=self._audio_callback  # 核心：数据就绪时的回调
+            callback=self._audio_callback
         )
         self.stream.start()
 
         logger.debug("开始录音")
-        # 启动定时器，时间一到自动停止
-        self.timer.start(int(self.duration * 1000))
+
+        # threading.Timer 替代 QTimer，时间到自动调用 stop_recording
+        self._timer = threading.Timer(self.duration, self.stop_recording)
+        self._timer.daemon = True
+        self._timer.start()
 
     def _audio_callback(self, indata, frames, time, status):
-        """底层音频缓冲区满时自动调用（在后台线程执行）"""
+        """底层音频缓冲区满时自动调用（sounddevice 后台线程）"""
         if status:
             logger.warning(f"录音状态: {status}")
-        self.recorded_frames.append(indata.copy())
+        with self._lock:
+            self.recorded_frames.append(indata.copy())
 
     def stop_recording(self):
-        """停止录音并发射数据"""
-        logger.debug("已经进入stop_recording")
-        if hasattr(self, 'stream') and self.stream.active:
+        """停止录音并回调数据"""
+        logger.debug("已经进入 stop_recording")
+
+        # 防止重复调用
+        if not self._recording:
+            return
+        self._recording = False
+
+        # 取消定时器（手动提前停止时需要）
+        if self._timer:
+            self._timer.cancel()
+            self._timer = None
+
+        if self.stream and self.stream.active:
             self.stream.stop()
             self.stream.close()
 
-            # 将收集到的片段拼成一维 numpy 数组
-            if self.recorded_frames:
-                audio_data = np.concatenate(self.recorded_frames, axis=0).flatten()
-                # 如果录音稍微超长，截断到指定时长
-                self.voice_data_ready.emit(audio_data[:self.frames_needed])
-                logger.debug("已经获取到数据，正在发射")
+            with self._lock:
+                frames = list(self.recorded_frames)
 
-            self.recording_status.emit("录音结束")
+            if frames:
+                audio_data = np.concatenate(frames, axis=0).flatten()
+                data = audio_data[:self.frames_needed]
+                self._emit_data(data)
+                logger.debug("已经获取到数据，正在回调")
+
+
+    def _emit_data(self, data):
+        logger.debug(self.on_data_ready.__name__)
+        if self.on_data_ready:
+            self.on_data_ready(data)

@@ -2,7 +2,6 @@ import copy
 import json
 from pathlib import Path
 
-from PyQt5.QtCore import QObject, pyqtSignal
 from loguru import logger
 from openai import Client
 
@@ -20,26 +19,27 @@ client = Client(
 )
 
 
-class HandleMemory(QObject):
-    finished = pyqtSignal(object)
-    query_result = pyqtSignal(str, object)  # (原始问题, 匹配到的记忆dict或None)
-
+class HandleMemory():
     def __init__(self):
         super().__init__()
         self.current_dialogue = None
         self._matched_group = None  # 暂存检索匹配到的组别
+        self.user_msg = None    # 初始化用户输入信息
 
         # 初始化向量化模型
         self.embModel = VectorHandler()
 
-    def query_memory(self, user_msg):
+    async def query_memory(self, msg):
         """检索与当前问题相关的记忆"""
         self._matched_group = None
+
+        # 获取广播的数据
+        self.user_msg = msg
 
         # 1. 直接用权重匹配分数
         scored_groups = []
         for group in data.keys():
-            score = data.get(group, {}).get("weight", "")
+            score = data.get(group, {}).get("weight", "None")
             scored_groups.append((group, score))
 
         # 2. 按权重匹配分数降序排序
@@ -59,7 +59,7 @@ class HandleMemory(QObject):
                 old_mem_str = str(old_mem)
 
             try:
-                result = self.embModel.calculate_similarity(old_mem_str, user_msg, group)
+                result = self.embModel.calculate_similarity(old_mem_str, self.user_msg, group)
                 if result == 1:
                     self._matched_group = group
                     break  # 找到一个即停
@@ -70,14 +70,18 @@ class HandleMemory(QObject):
 
         if self._matched_group:
             matched_data = {self._matched_group: copy.deepcopy(data[self._matched_group])}
-            self.query_result.emit(user_msg, matched_data)
+            # self.query_result.emit(self.user_msg, matched_data)
+            answer = f"历史记忆{matched_data},当前问题{self.user_msg}"
+            return answer
         else:
-            self.query_result.emit(user_msg, None)
+            # self.query_result.emit(self.user_msg, None)
+            return self.user_msg
 
 
-    def to_ai_memory(self, new_dialogue):
+    async def to_ai_memory(self, msg):
         """归档记忆，复用检索时已匹配的 group，不再二次判断相关性"""
-        self.current_dialogue = new_dialogue
+        self.current_dialogue = f"用户问题{self.user_msg},AI回复{msg}"
+        logger.debug(f"to_ai_memory传入的数据{self.current_dialogue}")
 
         if self.current_dialogue is None:
             logger.error("输入合并记忆的信息为空")
@@ -101,14 +105,14 @@ class HandleMemory(QObject):
 用户问题：[概括合并后的用户问题]
 AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
             try:
-                refined_msg = self.call_ai_sync(prompt)
+                refined_msg = await self.call_ai_sync(prompt)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 logger.error(e)
 
             # 增加对有效格式的判断，且超时/失败时保护原记忆
-            if refined_msg != 0:
+            if refined_msg:
 
                 # 最终清理后的完整memory
                 clean_lines = [line for line in refined_msg.strip().split('\n')]
@@ -116,7 +120,9 @@ AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
                 data[self._matched_group]['memory'] = clean_lines
                 data[self._matched_group]['weight'] += 1
                 self.save_to_json()
-                self.finished.emit(copy.deepcopy(data))
+
+                # self.finished.emit(copy.deepcopy(data))
+
                 logger.info(f"记忆已合并到组别 {self._matched_group}")
             else:
                 logger.warning(f"记忆合并失败(API超时或格式错误)，保留组别 {self._matched_group} 原有记忆")
@@ -125,20 +131,19 @@ AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
             return
 
         # 无匹配：新建记忆
-        self._create_new_memory()
+        await self._create_new_memory()
 
     # 符合条件时重置记忆
-    def _create_new_memory(self):
+    async def _create_new_memory(self):
         """在权重最低的组别新建记忆"""
         lowest_group = min(data.keys(), key=lambda k: data[k].get("weight", 0))
         data[lowest_group]['memory'] = self.current_dialogue
         data[lowest_group]['weight'] = 1
         self.save_to_json()
-        self.finished.emit("")
         self._matched_group = None
         logger.info("未找到相关记忆，新记忆已归档")
 
-    def call_ai_sync(self, prompt):
+    async def call_ai_sync(self, prompt):
         """同步调用大模型API进行记忆精简"""
         if not client:
             logger.error("OpenAI Client 未初始化！无法调用API")

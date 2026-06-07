@@ -1,23 +1,32 @@
-import sys
-
-from PyQt5.QtWidgets import QApplication
-
-from src.ui.view.based_ui import DeskpetUI
-from src.ui.butler.ui_relay import CommunicationButler
+import os
+import webview
 from src.core.sum_thread import ThreadManager
+from src.ui.view.based_ui import MascotApi
 
+# 透明窗口所需参数（无 --incognito，无强制杀进程）
+os.environ['WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'] = (
+    '--disable-features=CalculateNativeWinOcclusion '
+    '--enable-transparent-visuals '
+    '--enable-blink-features=WebGLAlpha,Accelerated2dCanvas '
+    '--disable-gpu-vsync'
+)
 
 if __name__ == "__main__":
-    # 初始化线程
-    app = QApplication(sys.argv)
-    # 实例化UI
-    view = DeskpetUI()
-    # 实例化线程
     core = ThreadManager()
-    # 连接到中间管家管理连接
-    butler = CommunicationButler(view=view, core=core)
-    # 显示UI
-    view.show()
-    # 结束指令
-    exit_code = app.exec_()
-    core.cleanup().exit(exit_code)
+    ui_api = MascotApi()
+    HTTP_PORT = 8111
+
+    window = webview.create_window(
+        '桌宠助手',
+        url=f'http://127.0.0.1:{HTTP_PORT}/pyweb.html',
+        js_api=ui_api,
+        width=360, height=500,
+        frameless=True,
+        transparent=True,
+        easy_drag=False,
+        on_top=True,
+    )
+
+    ui_api.set_window(window)
+
+    webview.start(gui='edgechromium')

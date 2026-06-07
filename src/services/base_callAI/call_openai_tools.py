@@ -1,38 +1,62 @@
-import asyncio
 import json
 
-from PyQt5.QtCore import pyqtSignal, QObject
 from loguru import logger
 from openai import AsyncClient
 
 from .config import app_config
 from src.services.mcp_support import call_mcp_tool_async, mcp_manager  # 导入桥接方法和实例
+from src.services.memory_manage.memory_tools import HandleMemory
 
 client = AsyncClient(
     base_url=app_config.openai.api_url,
     api_key=app_config.openai.api_key,
+    timeout=15
 )
 
 
-class ChatToAI(QObject):
-    message_received = pyqtSignal(str)
-    finished = pyqtSignal()
+class ChatToAI():
 
     def __init__(self):
         super().__init__()
+        self.memory = HandleMemory()
+        self.img_message = None
+        self.replay = None
+        self.img_message = None  # 初始化图片信息(如果有)
 
     @staticmethod
     def load_system_prompt(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
 
-    def fetch_data(self, msg):
-        asyncio.run(self._async_fetch(msg))
+    async def fetch_data(self, queue, msg_queue):
+        """启动AI回复的中继"""
+        try:
+            while True:
+                msg= await queue.get()
+                if msg[1] == "img":
+                    self.img_message = msg[0]
+                    await msg_queue.put("看到图片了，你想问什么")
+                    break
+                logger.debug(f"fetch_data获取到的消息{msg}")
+                if msg[0]:
+                    result = msg[0]
+                    if self.img_message:
+                        result = f"图片信息{self.img_message},用户问题{result}"
+                        await self._async_fetch(result, msg_queue)
+                    else:
+                        await self._async_fetch(result, msg_queue)
+                self.img_message = None
+                queue.task_done()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            logger.error(e)
 
-    async def _async_fetch(self, msg):
+    async def _async_fetch(self, msg, queue):
+        msg = await self.memory.query_memory(msg)
         system_prompts = self.load_system_prompt("prompts/callAI.md")
         if not system_prompts:
-            self.message_received.emit("call_ai没有给系统提示词啊")
+            logger.error("call_ai没有给系统提示词啊")
             return
 
         # 🚨 关键1：获取 MCP 当前注册的所有工具列表 (读内存即可，不需要桥接)
@@ -69,7 +93,9 @@ class ChatToAI(QObject):
                 if delta.content:
                     if not delta.content.strip() and not text_content:
                         continue
-                    self.message_received.emit(delta.content)
+                    # self.message_received.emit(delta.content)
+                    logger.debug(delta.content)
+                    await queue.put(delta.content)
                     text_content += delta.content
 
                 # 🚨 关键3：收集工具调用碎片
@@ -104,7 +130,8 @@ class ChatToAI(QObject):
                         func_args = {}
 
                     # 通知 UI 正在执行动作
-                    self.message_received.emit(f"[正在执行工具: {func_name}...]\n")
+                    # self.message_received.emit(f"[正在执行工具: {func_name}...]\n")
+                    await queue.put(f"[正在执行工具: {func_name}...]\n")
                     logger.debug(f"AI 决定调用工具: {func_name}, 参数: {func_args}")
 
                     # 使用桥接方法安全调用 MCP 工具
@@ -130,12 +157,15 @@ class ChatToAI(QObject):
                     if not chunk.choices:
                         continue
                     if chunk.choices[0].delta.content:
-                        self.message_received.emit(chunk.choices[0].delta.content)
+                        # self.message_received.emit(chunk.choices[0].delta.content)
+                        text_content = chunk.choices[0].delta.content
+                        await queue.put(text_content)
+
+            await self.memory.to_ai_memory(text_content)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             logger.error(e)
-            self.message_received.emit(f"\n[请求出错: {e}]")
-        finally:
-            self.finished.emit()
+            # self.message_received.emit(f"\n[请求出错: {e}]")
+            await queue.put(f"\n[请求出错: {e}]")

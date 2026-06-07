@@ -54,10 +54,10 @@ async def get_current_weather(location : str):
     quality = result["data"]["weather_data"]["quality"]
 
     answer = {
-        "today": today,
+        "Date": today,
         "city": city,
-        "wendu": wendu,
-        "quality": quality,
+        "Temperature": wendu,
+        "Air quality": quality,
     }
 
     logger.debug(answer)
