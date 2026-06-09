@@ -6,6 +6,7 @@ from openai import AsyncClient
 from .config import app_config
 from src.services.mcp_support import call_mcp_tool_async, mcp_manager  # 导入桥接方法和实例
 from src.services.memory_manage.memory_tools import HandleMemory
+from src.core.methods_tools import BaseAIRetry
 
 client = AsyncClient(
     base_url=app_config.openai.api_url,
@@ -42,22 +43,26 @@ class ChatToAI():
                     result = msg[0]
                     if self.img_message:
                         result = f"图片信息{self.img_message},用户问题{result}"
-                        await self._async_fetch(result, msg_queue)
-                    else:
-                        await self._async_fetch(result, msg_queue)
+                    await self._async_fetch(result, msg_queue)
                 self.img_message = None
+                await msg_queue.put(None)
                 queue.task_done()
         except Exception as e:
             import traceback
             traceback.print_exc()
             logger.error(e)
+            await msg_queue.put(None)
 
-    async def _async_fetch(self, msg, queue):
-        msg = await self.memory.query_memory(msg)
+    @BaseAIRetry(max_frequency = 3, delay = 0)
+    async def _async_fetch(self, _msg, queue):
+        # 这里_msg不要重名，好像传入方法的参数优先级最高
+        msg = await self.memory.query_memory(_msg)
+        # logger.debug(f"传回的msg{msg}")
         system_prompts = self.load_system_prompt("prompts/callAI.md")
         if not system_prompts:
             logger.error("call_ai没有给系统提示词啊")
-            return
+            raise "call_ai没有给系统提示词啊"
+            # return
 
         # 🚨 关键1：获取 MCP 当前注册的所有工具列表 (读内存即可，不需要桥接)
         mcp_tools = mcp_manager.all_tools if mcp_manager else []
@@ -93,7 +98,6 @@ class ChatToAI():
                 if delta.content:
                     if not delta.content.strip() and not text_content:
                         continue
-                    # self.message_received.emit(delta.content)
                     logger.debug(delta.content)
                     await queue.put(delta.content)
                     text_content += delta.content
@@ -129,8 +133,8 @@ class ChatToAI():
                     except:
                         func_args = {}
 
+
                     # 通知 UI 正在执行动作
-                    # self.message_received.emit(f"[正在执行工具: {func_name}...]\n")
                     await queue.put(f"[正在执行工具: {func_name}...]\n")
                     logger.debug(f"AI 决定调用工具: {func_name}, 参数: {func_args}")
 
@@ -157,7 +161,6 @@ class ChatToAI():
                     if not chunk.choices:
                         continue
                     if chunk.choices[0].delta.content:
-                        # self.message_received.emit(chunk.choices[0].delta.content)
                         text_content = chunk.choices[0].delta.content
                         await queue.put(text_content)
 
@@ -167,5 +170,4 @@ class ChatToAI():
             import traceback
             traceback.print_exc()
             logger.error(e)
-            # self.message_received.emit(f"\n[请求出错: {e}]")
             await queue.put(f"\n[请求出错: {e}]")

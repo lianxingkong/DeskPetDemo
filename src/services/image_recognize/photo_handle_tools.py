@@ -6,11 +6,13 @@ import aiohttp
 from loguru import logger
 
 from .config import app_config
+from src.core.methods_tools import BaseAIRetry
 
 
 save_dir = Path("/")
 save_dir.mkdir(parents=True, exist_ok=True)
 
+@BaseAIRetry(max_frequency=3, delay=0)
 async def query_task_result(access_token: str, task_id: str):
     """查询任务结果"""
     params = {"access_token": access_token}
@@ -65,6 +67,7 @@ class Report_request():
                 return data["access_token"]
 
 
+    @BaseAIRetry(max_frequency=3, delay=0)
     async def post_access_token(self, request_url: str, image_base64: str) -> str:
         """
         提交百度图像内容理解异步任务
@@ -94,6 +97,7 @@ class Report_request():
             logger.error(f"提交百度图像理解任务失败：{str(e)}")
             raise
         return self.task_id
+
 
     async def get_reply(self, queue, file_path):
         """

@@ -1,13 +1,10 @@
-import os
 import webview
 from src.core.sum_thread import ThreadManager
 from src.ui.view.based_ui import MascotApi
 
-# 透明窗口所需参数（无 --incognito，无强制杀进程）
-os.environ['WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS'] = (
-    '--disable-features=CalculateNativeWinOcclusion '
-    '--enable-transparent-visuals '
-)
+
+# 语音输入没有分格
+# 按钮没有额外处理
 
 if __name__ == "__main__":
     core = ThreadManager()

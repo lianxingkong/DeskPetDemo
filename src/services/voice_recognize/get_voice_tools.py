@@ -82,6 +82,5 @@ class AsyncVoiceRecorder:
 
 
     def _emit_data(self, data):
-        logger.debug(self.on_data_ready.__name__)
         if self.on_data_ready:
             self.on_data_ready(data)

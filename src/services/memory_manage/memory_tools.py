@@ -7,6 +7,8 @@ from openai import Client
 
 from .vector_handler import VectorHandler
 from .config import app_config
+from src.core.methods_tools import BaseAIRetry
+
 
 path = Path(__file__).resolve().parent
 filepath = path / 'memory.json'
@@ -143,6 +145,7 @@ AI回复：[概括合并后的AI回复，若有代码则原样保留]"""
         self._matched_group = None
         logger.info("未找到相关记忆，新记忆已归档")
 
+    @BaseAIRetry(max_frequency=3, delay=0)
     async def call_ai_sync(self, prompt):
         """同步调用大模型API进行记忆精简"""
         if not client:

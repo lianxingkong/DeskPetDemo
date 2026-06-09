@@ -49,10 +49,15 @@ class MascotApi:
             logger.warning("Window 未初始化，无法显示回复")
             return
 
+        if text is None:
+            # 返回None说明结束信号
+            self._window.evaluate_js('endStream()')
+
         js_safe_text = json.dumps(text, ensure_ascii=False)
 
         # 调用前端写好的 addReply 函数
-        self._window.evaluate_js(f"addReply({js_safe_text})")
+        self._window.evaluate_js(f"addReply({js_safe_text}, true)")
+
 
     def get_mouse_relative_pos(self):
         try:
@@ -147,7 +152,7 @@ class MascotApi:
 
     def start_recording(self):
         """启动录音功能"""
-        # ★ 防止重复点击：如果正在录音，则直接返回
+        # 防止重复点击：如果正在录音，则直接返回
         if hasattr(self, 'recorder') and self.recorder and self.recorder.is_recording:
             print("正在录音中，请勿重复操作")
             return
