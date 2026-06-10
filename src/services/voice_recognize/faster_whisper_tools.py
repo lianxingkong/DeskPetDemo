@@ -42,7 +42,7 @@ class WhisperSegment():
 
                 if result_text:
                     logger.info(f"获取到的结果{result_text}")
-                    await queue.put((result_text, None))
+                    await queue.put((result_text, None, False))
                 else:
                     logger.error("[未听清] 没有检测到有效语音。")
 

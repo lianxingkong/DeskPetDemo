@@ -8,6 +8,7 @@ from src.services.voice_recognize import WhisperSegment, AsyncVoiceRecorder
 from src.services.memory_manage import HandleMemory
 from src.services.image_recognize import Report_request
 from src.services.base_callAI import ChatToAI
+from src.services.monitor_screen import Monitor_Screen
 
 
 class ThreadManager:
@@ -43,6 +44,7 @@ class ThreadManager:
         self.voice_worker = WhisperSegment()
         self.photo_worker = Report_request()
         self.memory_worker = HandleMemory()
+        self.monitor_woker = Monitor_Screen()
 
         # 启动线程
         self.t1 = threading.Thread(target=self._init_text_thread, daemon=True)
@@ -99,10 +101,11 @@ class ThreadManager:
 
     async def _run_photo_tasks(self):
         """img 并发运行输入和输出队列的监听任务"""
+        self.monitor = asyncio.create_task(self.monitor_woker.base_monitor(self.img_queue))
         self.fetch_img = asyncio.create_task(self.photo_worker.start_process(self.img_queue, self.result_queue))
         self.ai_msg = asyncio.create_task(self.chat_worker.fetch_data(self.result_queue, self.ai_msg_queue))
         self.replay = asyncio.create_task(self.replay_data(self.ai_msg_queue))
-        await asyncio.gather(self.fetch_img, self.replay, self.ai_msg)
+        await asyncio.gather(self.monitor, self.fetch_img, self.replay, self.ai_msg)
 
     async def _run_text_tasks(self):
         """text 并发运行输入和输出队列的监听任务"""
@@ -126,7 +129,7 @@ class ThreadManager:
 
         # 使用 call_soon_threadsafe 跨线程安全地提交协程
         async def _put():
-            await self.queue.put((msg, None))
+            await self.queue.put((msg, None, False))
 
         self.text_loop.call_soon_threadsafe(lambda: asyncio.create_task(_put()))
 
@@ -137,8 +140,9 @@ class ThreadManager:
             return
 
         # 使用 call_soon_threadsafe 跨线程安全地提交协程
+        _list = [path, None, False]
         async def _put():
-            await self.img_queue.put(path)
+            await self.img_queue.put(_list)
 
         self.img_loop.call_soon_threadsafe(lambda: asyncio.create_task(_put()))
 

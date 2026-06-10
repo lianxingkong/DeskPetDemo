@@ -1,6 +1,7 @@
 import asyncio
 import base64
 from pathlib import Path
+from typing import Any, Coroutine
 
 import aiohttp
 from loguru import logger
@@ -34,6 +35,7 @@ class Report_request():
 
     def __init__(self):
         super().__init__()
+        self.monitor_status = False
         self.status = "img"
         self.img_url = None
         self.task_id = None
@@ -42,7 +44,7 @@ class Report_request():
         """启动图片识别的中继"""
         try:
             while True:
-                file_path = await img_queue.get()
+                file_path = await img_queue.get()   # 常规返回图片地址，监听返回列表 [path, None, st:bool = True]
                 if file_path:
                     await self.get_reply(result_queue, file_path)
                 img_queue.task_done()
@@ -68,14 +70,26 @@ class Report_request():
 
 
     @BaseAIRetry(max_frequency=3, delay=0)
-    async def post_access_token(self, request_url: str, image_base64: str) -> str:
+    async def post_access_token(self, request_url: str, image_base64: str, st: bool) -> tuple[Any, bool]:
         """
         提交百度图像内容理解异步任务
         """
+        # 正常途径的提示词
         data = {
             "image": image_base64,
             "question": "请识别图片内容：若图片包含代码，请原样提取输出；若为其他内容，请详细客观描述。要求精准无冗余。",
         }
+
+        # 用于监听屏幕的提示词
+        data_demo = {
+            "image": image_base64,
+            "question": "请识别截图中的活跃应用名称或者游戏名称，并判断用户当前的操作状态。",
+        }
+
+        if st:
+            # 命中监听渠道
+            data = data_demo
+
         try:
             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 async with session.post(request_url, json=data) as resp:
@@ -96,14 +110,17 @@ class Report_request():
         except Exception as e:
             logger.error(f"提交百度图像理解任务失败：{str(e)}")
             raise
-        return self.task_id
+        return self.task_id, st
 
 
-    async def get_reply(self, queue, file_path):
+    async def get_reply(self, queue, list):
         """
         获取百度图像内容理解结果异步任务
         """
         # 只获取一次token
+        file_path = list[0]
+        self.monitor_status = list[2]    # False 表示正常渠道，True 表示监听渠道
+
         access_token = await self.get_baidu_access_token(app_config.baidu.api_key, app_config.baidu.secret_key)
         logger.debug(f"获取到的access_token前20位: {access_token[:20] if access_token else 'None'}")
 
@@ -130,7 +147,7 @@ class Report_request():
 
         # 提交任务
         try:
-            task_id = await self.post_access_token(request_url, image_base64)
+            task_id, st = await self.post_access_token(request_url, image_base64, self.monitor_status)
             logger.debug(f"提交成功，task_id: {task_id}")
         except Exception as e:
             logger.error(f"提交任务失败: {e}")
@@ -166,4 +183,4 @@ class Report_request():
             logger.error("任务处理超时，请重试")
             return
         logger.debug(f"baidu: {reply}")
-        await queue.put((reply, self.status))  # 返回结果
+        await queue.put((reply, self.status, st))  # 返回结果

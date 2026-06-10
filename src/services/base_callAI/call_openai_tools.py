@@ -33,19 +33,36 @@ class ChatToAI():
         """启动AI回复的中继"""
         try:
             while True:
-                msg= await queue.get()
-                if msg[1] == "img":
-                    self.img_message = msg[0]
+                msg = await queue.get()
+
+                # 防御性检查
+                if not msg or len(msg) < 3:
+                    queue.task_done()
+                    continue
+
+                text = msg[0]
+                msg_type = msg[1]  # 'img' 或 None
+                st = msg[2]  # True(监听) 或 False(普通)
+                logger.debug(f"fetch_data获取到的消息: {msg}")
+                if msg_type == "img" and st:
+                    if text:
+                        await self._async_fetch(text, msg_queue, st)
+                    self.img_message = None
+                    await msg_queue.put(None)
+                elif msg_type == "img" and not st:
+                    self.img_message = text
                     await msg_queue.put("看到图片了，你想问什么")
-                    break
-                logger.debug(f"fetch_data获取到的消息{msg}")
-                if msg[0]:
-                    result = msg[0]
-                    if self.img_message:
-                        result = f"图片信息{self.img_message},用户问题{result}"
-                    await self._async_fetch(result, msg_queue)
-                self.img_message = None
-                await msg_queue.put(None)
+                    await msg_queue.put(None)
+                elif msg_type is None:
+                    if text:
+                        final_text = text
+                        if self.img_message:
+                            final_text = f"图片信息：{self.img_message}\n用户问题：{text}"
+                            self.img_message = None
+
+                        await self._async_fetch(final_text, msg_queue, st)
+                    await msg_queue.put(None)
+
                 queue.task_done()
         except Exception as e:
             import traceback
@@ -54,21 +71,23 @@ class ChatToAI():
             await msg_queue.put(None)
 
     @BaseAIRetry(max_frequency = 3, delay = 0)
-    async def _async_fetch(self, _msg, queue):
+    async def _async_fetch(self, _msg, queue, st):
         # 这里_msg不要重名，好像传入方法的参数优先级最高
         msg = await self.memory.query_memory(_msg)
-        # logger.debug(f"传回的msg{msg}")
+        monitor_prompts = self.load_system_prompt("prompts/monitor.md")
         system_prompts = self.load_system_prompt("prompts/callAI.md")
-        if not system_prompts:
+        if not system_prompts or not monitor_prompts:
             logger.error("call_ai没有给系统提示词啊")
             raise "call_ai没有给系统提示词啊"
-            # return
 
         # 🚨 关键1：获取 MCP 当前注册的所有工具列表 (读内存即可，不需要桥接)
         mcp_tools = mcp_manager.all_tools if mcp_manager else []
 
+        # 命中监听屏幕
+        _prompts = monitor_prompts if st else system_prompts
+
         messages = [
-            {"role": "system", "content": system_prompts},
+            {"role": "system", "content": _prompts},
             {"role": "user", "content": msg}
         ]
 
@@ -98,7 +117,6 @@ class ChatToAI():
                 if delta.content:
                     if not delta.content.strip() and not text_content:
                         continue
-                    logger.debug(delta.content)
                     await queue.put(delta.content)
                     text_content += delta.content
 
