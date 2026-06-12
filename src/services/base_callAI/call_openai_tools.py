@@ -8,12 +8,12 @@ from src.services.mcp_support import call_mcp_tool_async, mcp_manager  # 导入�
 from src.services.memory_manage.memory_tools import HandleMemory
 from src.core.methods_tools import BaseAIRetry
 
+
 client = AsyncClient(
     base_url=app_config.openai.api_url,
     api_key=app_config.openai.api_key,
     timeout=15
 )
-
 
 class ChatToAI():
 
@@ -29,30 +29,28 @@ class ChatToAI():
         with open(file_path, 'r', encoding='utf-8') as f:
             return f.read()
 
-    async def fetch_data(self, queue, msg_queue):
+    async def fetch_data(self, get_original_queue, put_result_queue):
         """启动AI回复的中继"""
         try:
             while True:
-                msg = await queue.get()
+                msg = await get_original_queue.get()
 
                 # 防御性检查
                 if not msg or len(msg) < 3:
-                    queue.task_done()
+                    get_original_queue.task_done()
                     continue
 
                 text = msg[0]
                 msg_type = msg[1]  # 'img' 或 None
-                st = msg[2]  # True(监听) 或 False(普通)
+                st = msg[2]  # window_title(监听) 或 False(普通)
                 logger.debug(f"fetch_data获取到的消息: {msg}")
                 if msg_type == "img" and st:
                     if text:
-                        await self._async_fetch(text, msg_queue, st)
+                        await self._async_fetch(text, put_result_queue, st)
                     self.img_message = None
-                    await msg_queue.put(None)
                 elif msg_type == "img" and not st:
                     self.img_message = text
-                    await msg_queue.put("看到图片了，你想问什么")
-                    await msg_queue.put(None)
+                    await put_result_queue.put("看到图片了，你想问什么")
                 elif msg_type is None:
                     if text:
                         final_text = text
@@ -60,20 +58,18 @@ class ChatToAI():
                             final_text = f"图片信息：{self.img_message}\n用户问题：{text}"
                             self.img_message = None
 
-                        await self._async_fetch(final_text, msg_queue, st)
-                    await msg_queue.put(None)
+                        await self._async_fetch(final_text, put_result_queue, st)
 
-                queue.task_done()
+                get_original_queue.task_done()
         except Exception as e:
             import traceback
             traceback.print_exc()
             logger.error(e)
-            await msg_queue.put(None)
 
     @BaseAIRetry(max_frequency = 3, delay = 0)
-    async def _async_fetch(self, _msg, queue, st):
+    async def _async_fetch(self, final_text, put_result_queue, st):
         # 这里_msg不要重名，好像传入方法的参数优先级最高
-        msg = await self.memory.query_memory(_msg)
+        msg = await self.memory.query_memory(final_text)
         monitor_prompts = self.load_system_prompt("prompts/monitor.md")
         system_prompts = self.load_system_prompt("prompts/callAI.md")
         if not system_prompts or not monitor_prompts:
@@ -117,7 +113,8 @@ class ChatToAI():
                 if delta.content:
                     if not delta.content.strip() and not text_content:
                         continue
-                    await queue.put(delta.content)
+                    await put_result_queue.put([delta.content, True])
+                    logger.debug([delta.content, True])
                     text_content += delta.content
 
                 # 🚨 关键3：收集工具调用碎片
@@ -153,7 +150,7 @@ class ChatToAI():
 
 
                     # 通知 UI 正在执行动作
-                    await queue.put(f"[正在执行工具: {func_name}...]\n")
+                    await put_result_queue.put([f"[正在执行工具: {func_name}...]\n", True])
                     logger.debug(f"AI 决定调用工具: {func_name}, 参数: {func_args}")
 
                     # 使用桥接方法安全调用 MCP 工具
@@ -180,12 +177,13 @@ class ChatToAI():
                         continue
                     if chunk.choices[0].delta.content:
                         text_content = chunk.choices[0].delta.content
-                        await queue.put(text_content)
+                        await put_result_queue.put([text_content, True])
 
             await self.memory.to_ai_memory(text_content)
+            await put_result_queue.put([" ", False])
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             logger.error(e)
-            await queue.put(f"\n[请求出错: {e}]")
+            await put_result_queue.put([f"\n[请求出错: {e}]", True])

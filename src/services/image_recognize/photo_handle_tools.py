@@ -44,7 +44,7 @@ class Report_request():
         """启动图片识别的中继"""
         try:
             while True:
-                file_path = await img_queue.get()   # 常规返回图片地址，监听返回列表 [path, None, st:bool = True]
+                file_path = await img_queue.get()   # 常规返回图片地址，监听返回列表 [path, None, st:bool = window_title]
                 if file_path:
                     await self.get_reply(result_queue, file_path)
                 img_queue.task_done()
@@ -83,7 +83,7 @@ class Report_request():
         # 用于监听屏幕的提示词
         data_demo = {
             "image": image_base64,
-            "question": "请识别截图中的活跃应用名称或者游戏名称，并判断用户当前的操作状态。",
+            "question": f"但前活跃应用是{st}，描述用户当前操作行为，在最后返回“当前活跃应用{st}”",
         }
 
         if st:

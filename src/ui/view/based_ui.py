@@ -60,6 +60,7 @@ class MascotApi:
 
 
     def get_mouse_relative_pos(self):
+        """拖动移动逻辑"""
         try:
             # 1. 获取屏幕上的绝对物理坐标
             cursor = ctypes.wintypes.POINT()
