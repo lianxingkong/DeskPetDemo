@@ -12,7 +12,6 @@ from method import build_headers
 mcp = FastMCP("MyCustomTools")
 
 # 获取天气工具
-@mcp.tool()
 async def get_current_weather(location : str):
     """获取指定地点的天气。
 
@@ -27,7 +26,7 @@ async def get_current_weather(location : str):
         logger.error("妖狐数据的key为空")
         return "妖狐数据的key为空"
 
-    url = f"https://api.yaohud.cn/api/v6/weather?"
+    url = app_config.yaohu.weather_url
 
     headers = build_headers(timestamp)
 
