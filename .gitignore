@@ -1,0 +1,6 @@
+# created by virtualenv automatically
+*
+/.env/
+# 真实环境变量不提交，模板可以
+!.env.example
+.env
